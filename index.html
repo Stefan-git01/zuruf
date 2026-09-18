@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zuruf</title>
+<style>
+  :root {
+    --bg: #f6f7f5; --card: #fff; --text: #1d2521; --muted: #67706b; --line: #dde2de;
+    --accent: #1f6f4a; --accent-text: #fff; --warn: #b3402a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121614; --card: #1b211e; --text: #e8ece9; --muted: #98a29c; --line: #2c3530; --accent: #4fb883; --accent-text: #0c1a13; --warn: #e5836d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, sans-serif; padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); }
+  main { max-width: 560px; margin: 0 auto; padding: 16px 0 48px; }
+  h1 { font-size: 22px; margin: 8px 0 16px; display: flex; justify-content: space-between; align-items: center; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 24px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  input, textarea, select, button { font: inherit; color: inherit; }
+  input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  textarea { min-height: 84px; resize: vertical; }
+  button { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .row > * { flex: 1 1 auto; }
+  .row > button { flex: 0 0 auto; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .err { color: var(--warn); font-size: 14px; min-height: 1.2em; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .chip { padding: 5px 11px; border-radius: 99px; font-size: 14px; }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .item { display: flex; gap: 10px; align-items: flex-start; }
+  .item input[type=checkbox] { width: 22px; height: 22px; margin-top: 2px; flex: 0 0 auto; }
+  .item .t { font-weight: 600; word-break: break-word; }
+  .item .meta { font-size: 13px; color: var(--muted); }
+  .item .ergebnis { font-size: 14px; margin-top: 4px; padding-left: 8px; border-left: 3px solid var(--accent); }
+  .late { color: var(--warn); }
+  details summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
+  .hidden { display: none !important; }
+  #mic[aria-pressed="true"] { background: var(--warn); color: #fff; border-color: var(--warn); }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- Anmeldung -->
+  <section id="login" class="hidden">
+    <h1>Zuruf</h1>
+    <div class="card">
+      <div id="step-mail">
+        <label for="email">E-Mail-Adresse</label>
+        <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="name@beispiel.at">
+        <div class="row"><button id="send-code" class="primary">Code senden</button></div>
+        <p class="muted">Sie bekommen einen Code per E-Mail. Der Versand ist pro Stunde begrenzt.</p>
+      </div>
+      <div id="step-code" class="hidden">
+        <label for="code">Code aus der E-Mail</label>
+        <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="6-stelliger Code">
+        <div class="row">
+          <button id="verify" class="primary">Anmelden</button>
+          <button id="back">Andere Adresse</button>
+        </div>
+      </div>
+      <p id="login-err" class="err" role="alert"></p>
+    </div>
+  </section>
+
+  <!-- App -->
+  <section id="app" class="hidden">
+    <h1>Zuruf <span><button id="settings-btn" class="muted" aria-label="Einstellungen">⚙ Einstellungen</button> <button id="logout" class="muted">Abmelden</button></span></h1>
+
+    <dialog id="settings" class="card">
+      <form method="dialog">
+        <h2 style="margin-top:0">Modell</h2>
+        <label for="s-url">Adresse des Anbieters</label>
+        <input id="s-url" type="url" placeholder="https://…/v1" autocomplete="off">
+        <label for="s-model">Modellname</label>
+        <input id="s-model" type="text" autocomplete="off">
+        <label for="s-key">Schlüssel</label>
+        <input id="s-key" type="password" autocomplete="off">
+        <p class="muted">Wird nur auf diesem Gerät im Browser gespeichert, nicht in der Datenbank. Wer Ihr entsperrtes Gerät hat, kommt an den Schlüssel.</p>
+        <div class="row">
+          <button id="s-save" class="primary" value="save">Speichern</button>
+          <button value="cancel">Abbrechen</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="card">
+      <textarea id="text" placeholder="Sprechen oder tippen …" aria-label="Zuruf"></textarea>
+      <div class="row">
+        <select id="art" aria-label="Art">
+          <option value="aufgabe">Aufgabe</option>
+          <option value="notiz">Notiz</option>
+          <option value="beleg">Beleg</option>
+          <option value="rueckruf_termin">Rückruf / Termin</option>
+        </select>
+        <input id="faellig" type="date" aria-label="Fällig am">
+      </div>
+      <div class="row">
+        <button id="mic" aria-pressed="false">🎤 Sprechen</button>
+        <button id="foto">📷 Foto</button>
+        <button id="save" class="primary">Speichern</button>
+      </div>
+      <input id="foto-input" type="file" accept="image/*" capture="environment" class="hidden">
+      <p id="app-err" class="err" role="alert"></p>
+    </div>
+
+    <div id="vorschlag" class="card hidden" aria-live="polite">
+      <div class="muted">Vorschlag</div>
+      <div id="v-titel" class="t" style="font-weight:600"></div>
+      <div class="chips" id="v-arten"></div>
+      <div id="v-faellig" class="muted"></div>
+      <div class="row">
+        <button id="v-save" class="primary">Speichern</button>
+        <button id="v-cancel">Verwerfen</button>
+      </div>
+    </div>
+
+    <h2>Heute</h2>
+    <div id="heute"></div>
+
+    <h2>Liste</h2>
+    <div class="chips" id="chips"></div>
+    <div id="offen"></div>
+    <details><summary id="erledigt-summary">Erledigt und abgelegt</summary><div id="erledigt"></div></details>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// Öffentliche Werte: Projekt-Adresse und publishable key. Die Zugriffsregeln (RLS) schützen die Daten.
+const SUPABASE_URL = 'https://owdnpmsebrvkxrgahzoo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_7JdWjXxxLC1G-BlY3zJZhg_gywfDvfe';
+const ARTEN = { aufgabe: 'Aufgabe', notiz: 'Notiz', beleg: 'Beleg', rueckruf_termin: 'Rückruf / Termin' };
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+const $ = id => document.getElementById(id);
+let user = null, eintraege = [], filterArt = null;
+
+function show(section) { $('login').classList.toggle('hidden', section !== 'login'); $('app').classList.toggle('hidden', section !== 'app'); }
+function fehler(id, msg) { $(id).textContent = msg || ''; }
+function heute() { return new Date().toLocaleDateString('sv-SE'); } // YYYY-MM-DD in lokaler Zeit
+
+/* ---------- Anmeldung ---------- */
+$('send-code').onclick = async () => {
+  fehler('login-err');
+  const email = $('email').value.trim();
+  if (!email) return fehler('login-err', 'Bitte eine E-Mail-Adresse eingeben.');
+  $('send-code').disabled = true;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  $('send-code').disabled = false;
+  if (error) return fehler('login-err', error.status === 429 ? 'Zu viele Codes angefordert. Bitte später erneut versuchen.' : 'Code konnte nicht gesendet werden: ' + error.message);
+  $('step-mail').classList.add('hidden'); $('step-code').classList.remove('hidden'); $('code').focus();
+};
+$('back').onclick = () => { $('step-code').classList.add('hidden'); $('step-mail').classList.remove('hidden'); fehler('login-err'); };
+$('verify').onclick = async () => {
+  fehler('login-err');
+  const { error } = await sb.auth.verifyOtp({ email: $('email').value.trim(), token: $('code').value.trim(), type: 'email' });
+  if (error) fehler('login-err', 'Code ungültig oder abgelaufen.');
+};
+$('logout').onclick = () => sb.auth.signOut();
+
+sb.auth.onAuthStateChange((_event, session) => {
+  user = session?.user ?? null;
+  if (user) { show('app'); laden(); } else { show('login'); }
+});
+
+/* ---------- Sprechen oder Tippen ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+if (!SR) { $('mic').classList.add('hidden'); } // ohne Spracheingabe bleibt nur Tippen
+$('mic').onclick = () => {
+  if (rec) { rec.stop(); return; }
+  rec = new SR(); rec.lang = 'de-AT'; rec.interimResults = false;
+  $('mic').setAttribute('aria-pressed', 'true');
+  rec.onresult = e => { const t = Array.from(e.results).map(r => r[0].transcript).join(' '); $('text').value = ($('text').value + ' ' + t).trim(); };
+  const ende = () => { rec = null; $('mic').setAttribute('aria-pressed', 'false'); };
+  rec.onend = ende;
+  // Mikrofon verweigert oder nicht nutzbar: still auf Tippen umschalten. Kurze Pausen ("nichts gehört") lassen den Knopf stehen.
+  const dauerhaft = ['not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported'];
+  rec.onerror = e => { ende(); if (dauerhaft.includes(e.error)) { $('mic').classList.add('hidden'); $('text').focus(); } };
+  rec.start();
+};
+
+/* ---------- Speichern ---------- */
+function titelAus(text) { const t = text.trim().replace(/\s+/g, ' '); return t.length > 80 ? t.slice(0, 77) + '…' : t; }
+async function speichern(eintrag) {
+  const { error } = await sb.from('zurufe').insert(eintrag);
+  if (error) { fehler('app-err', 'Speichern fehlgeschlagen: ' + error.message); return false; }
+  $('text').value = ''; $('faellig').value = ''; $('vorschlag').classList.add('hidden');
+  laden(); return true;
+}
+
+/* ---------- Modell (Einstellungen nur auf diesem Gerät) ---------- */
+const EINSTELLUNG = 'zuruf.modell';
+function einstellung() { try { return JSON.parse(localStorage.getItem(EINSTELLUNG)) || {}; } catch { return {}; } }
+$('settings-btn').onclick = () => {
+  const s = einstellung(); $('s-url').value = s.url || ''; $('s-model').value = s.model || ''; $('s-key').value = s.key || '';
+  $('settings').showModal();
+};
+$('s-save').onclick = () => {
+  try { localStorage.setItem(EINSTELLUNG, JSON.stringify({ url: $('s-url').value.trim(), model: $('s-model').value.trim(), key: $('s-key').value.trim() })); }
+  catch { fehler('app-err', 'Einstellungen konnten in diesem Browser nicht gespeichert werden.'); }
+};
+
+async function vorschlagVomModell(text) {
+  const s = einstellung();
+  if (!s.url || !s.model || !s.key) return null; // nicht eingerichtet: ohne Vorschlag speichern
+  const url = /\/chat\/completions\/?$/.test(s.url) ? s.url : s.url.replace(/\/+$/, '') + '/chat/completions';
+  const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(url, {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.key },
+      body: JSON.stringify({
+        model: s.model, temperature: 0,
+        messages: [
+          { role: 'system', content: 'Du ordnest kurze Zurufe ein. Antworte NUR mit JSON: {"titel": string (max. 60 Zeichen), "art": "aufgabe"|"notiz"|"beleg"|"rueckruf_termin", "faellig_am": "YYYY-MM-DD" oder null}. faellig_am nur setzen, wenn im Text ein Datum oder ein relativer Tag steckt. Heute ist ' + heute() + '.' },
+          { role: 'user', content: text }
+        ]
+      })
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const roh = j.choices?.[0]?.message?.content || '';
+    const treffer = roh.match(/\{[\s\S]*\}/); if (!treffer) return null;
+    const v = JSON.parse(treffer[0]);
+    return {
+      titel: typeof v.titel === 'string' && v.titel.trim() ? v.titel.trim().slice(0, 80) : null,
+      art: ARTEN[v.art] ? v.art : null,
+      faellig_am: /^\d{4}-\d{2}-\d{2}$/.test(v.faellig_am || '') ? v.faellig_am : null
+    };
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+
+let offenerVorschlag = null;
+function zeigeVorschlag(v) {
+  offenerVorschlag = v;
+  $('v-titel').textContent = v.titel;
+  $('v-faellig').textContent = v.faellig_am ? 'Fällig am ' + new Date(v.faellig_am + 'T00:00').toLocaleDateString('de-AT') : '';
+  const box = $('v-arten'); box.replaceChildren();
+  Object.entries(ARTEN).forEach(([wert, name]) => { // ein Tipp ändert die Art
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = name;
+    b.setAttribute('aria-pressed', String(v.art === wert)); b.onclick = () => { v.art = wert; zeigeVorschlag(v); }; box.append(b);
+  });
+  $('vorschlag').classList.remove('hidden');
+}
+$('v-save').onclick = () => { $('v-save').disabled = true; speichern(offenerVorschlag).finally(() => { $('v-save').disabled = false; }); };
+$('v-cancel').onclick = () => $('vorschlag').classList.add('hidden');
+
+$('save').onclick = async () => {
+  fehler('app-err'); $('vorschlag').classList.add('hidden');
+  const roh = $('text').value.trim();
+  if (!roh) return fehler('app-err', 'Bitte zuerst etwas sprechen oder tippen.');
+  $('save').disabled = true;
+  const v = await vorschlagVomModell(roh);
+  const eintrag = { titel: titelAus(roh), roh_text: roh, art: $('art').value, faellig_am: $('faellig').value || null };
+  if (v) { // Modell hat geantwortet: Vorschlag zeigen, ein Tipp speichert
+    zeigeVorschlag({ ...eintrag, titel: v.titel || eintrag.titel, art: v.art || eintrag.art, faellig_am: v.faellig_am || eintrag.faellig_am });
+  } else { // Modell fehlt oder antwortet nicht: ohne Vorschlag speichern
+    await speichern(eintrag);
+  }
+  $('save').disabled = false;
+};
+
+/* ---------- Foto ---------- */
+$('foto').onclick = () => $('foto-input').click();
+$('foto-input').onchange = async e => {
+  const datei = e.target.files[0]; e.target.value = '';
+  if (!datei) return;
+  fehler('app-err');
+  const endung = (datei.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const pfad = `${user.id}/${crypto.randomUUID()}.${endung}`;
+  const up = await sb.storage.from('belege').upload(pfad, datei, { contentType: datei.type });
+  if (up.error) return fehler('app-err', 'Foto konnte nicht hochgeladen werden: ' + up.error.message);
+  const { error } = await sb.from('zurufe').insert({ titel: 'Beleg (Foto)', art: 'beleg', beleg_pfad: pfad });
+  if (error) return fehler('app-err', 'Eintrag fehlgeschlagen: ' + error.message);
+  laden();
+};
+
+/* ---------- Liste ---------- */
+async function laden() {
+  const { data, error } = await sb.from('zurufe').select('*').order('erstellt_am', { ascending: false });
+  if (error) return fehler('app-err', 'Liste konnte nicht geladen werden: ' + error.message);
+  eintraege = data; zeichne();
+}
+async function setStatus(id, status) {
+  const upd = { status, erledigt_am: status === 'offen' ? null : new Date().toISOString() };
+  const { error } = await sb.from('zurufe').update(upd).eq('id', id);
+  if (error) fehler('app-err', 'Ändern fehlgeschlagen: ' + error.message); else laden();
+}
+function karte(z) {
+  const d = document.createElement('div'); d.className = 'card item';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = z.status !== 'offen';
+  cb.setAttribute('aria-label', 'Erledigt'); cb.onchange = () => setStatus(z.id, cb.checked ? 'erledigt' : 'offen');
+  const body = document.createElement('div'); body.style.flex = '1';
+  const t = document.createElement('div'); t.className = 't'; t.textContent = z.titel;
+  const m = document.createElement('div'); m.className = 'meta';
+  let meta = ARTEN[z.art] || z.art;
+  if (z.faellig_am) meta += ' · fällig ' + new Date(z.faellig_am + 'T00:00').toLocaleDateString('de-AT');
+  if (z.beleg_pfad) meta += ' · mit Foto';
+  m.textContent = meta;
+  if (z.faellig_am && z.status === 'offen' && z.faellig_am < heute()) m.classList.add('late');
+  body.append(t, m);
+  if (z.ergebnis) { const e = document.createElement('div'); e.className = 'ergebnis'; e.textContent = z.ergebnis; body.append(e); }
+  if (z.beleg_pfad) {
+    const f = document.createElement('button'); f.textContent = 'Foto ansehen'; f.style.marginTop = '6px'; f.style.marginRight = '6px';
+    f.onclick = async () => {
+      const { data, error } = await sb.storage.from('belege').createSignedUrl(z.beleg_pfad, 300);
+      if (error) fehler('app-err', 'Foto konnte nicht geladen werden: ' + error.message); else window.open(data.signedUrl, '_blank', 'noopener');
+    };
+    body.append(f);
+  }
+  if (z.status === 'erledigt') {
+    const b = document.createElement('button'); b.textContent = 'Ablegen'; b.style.marginTop = '6px'; b.onclick = () => setStatus(z.id, 'abgelegt'); body.append(b);
+  }
+  d.append(cb, body); return d;
+}
+function fuellen(container, liste, leer) {
+  container.replaceChildren();
+  if (!liste.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = leer; container.append(p); return; }
+  liste.forEach(z => container.append(karte(z)));
+}
+function zeichne() {
+  const chips = $('chips'); chips.replaceChildren();
+  [[null, 'Alle'], ...Object.entries(ARTEN)].forEach(([wert, name]) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = name;
+    b.setAttribute('aria-pressed', String(filterArt === wert)); b.onclick = () => { filterArt = wert; zeichne(); }; chips.append(b);
+  });
+  const passt = z => !filterArt || z.art === filterArt;
+  const offen = eintraege.filter(z => z.status === 'offen');
+  const faellig = offen.filter(z => z.faellig_am && z.faellig_am <= heute()).sort((a, b) => a.faellig_am.localeCompare(b.faellig_am));
+  // "Wartet auf mich": offen und ein Agent hat ein Ergebnis eingetragen (Annahme, siehe plan.md, offene Frage 1)
+  const wartet = offen.filter(z => z.ergebnis && !faellig.includes(z));
+  fuellen($('heute'), [...faellig, ...wartet], 'Nichts fällig, nichts wartet auf Sie.');
+  fuellen($('offen'), offen.filter(passt), 'Keine offenen Einträge.');
+  const rest = eintraege.filter(z => z.status !== 'offen' && passt(z));
+  $('erledigt-summary').textContent = `Erledigt und abgelegt (${rest.length})`;
+  fuellen($('erledigt'), rest, 'Noch nichts erledigt.');
+}
+
+// Start: vorhandene Sitzung wird durch onAuthStateChange erkannt; sonst Anmeldung zeigen
+sb.auth.getSession().then(({ data }) => { if (!data.session) show('login'); });
+</script>
+</body>
+</html>
