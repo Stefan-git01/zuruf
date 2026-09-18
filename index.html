@@ -28,7 +28,10 @@
   .row > * { flex: 1 1 auto; }
   .row > button { flex: 0 0 auto; }
   .muted { color: var(--muted); font-size: 14px; }
-  .err { color: var(--warn); font-size: 14px; min-height: 1.2em; }
+  .err { color: var(--warn); font-size: 15px; font-weight: 600; }
+  .status { font-size: 15px; min-height: 1.4em; margin: 8px 0 0; }
+  .status.ok { color: var(--accent); font-weight: 600; }
+  .status.busy { color: var(--muted); }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
   .chip { padding: 5px 11px; border-radius: 99px; font-size: 14px; }
   .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
@@ -106,6 +109,7 @@
         <button id="save" class="primary">Speichern</button>
       </div>
       <input id="foto-input" type="file" accept="image/*" capture="environment" class="hidden">
+      <p id="app-status" class="status" aria-live="polite"></p>
       <p id="app-err" class="err" role="alert"></p>
     </div>
 
@@ -189,11 +193,18 @@ $('mic').onclick = () => {
 
 /* ---------- Speichern ---------- */
 function titelAus(text) { const t = text.trim().replace(/\s+/g, ' '); return t.length > 80 ? t.slice(0, 77) + '…' : t; }
+let statusTimer = null;
+function status(msg, art) { // art: 'busy' | 'ok'
+  const el = $('app-status'); el.textContent = msg || ''; el.className = 'status ' + (art || '');
+  clearTimeout(statusTimer); if (art === 'ok') statusTimer = setTimeout(() => status(''), 4000);
+}
 async function speichern(eintrag) {
-  const { error } = await sb.from('zurufe').insert(eintrag);
-  if (error) { fehler('app-err', 'Speichern fehlgeschlagen: ' + error.message); return false; }
+  fehler('app-err'); status('Speichere …', 'busy');
+  let error;
+  try { ({ error } = await sb.from('zurufe').insert(eintrag)); } catch (e) { error = e; } // z. B. kein Netz
+  if (error) { status(''); fehler('app-err', 'NICHT gespeichert: ' + (error.message || 'unbekannter Fehler')); return false; }
   $('text').value = ''; $('faellig').value = ''; $('vorschlag').classList.add('hidden');
-  laden(); return true;
+  status('Gespeichert ✓', 'ok'); laden(); return true;
 }
 
 /* ---------- Modell (Einstellungen nur auf diesem Gerät) ---------- */
@@ -273,14 +284,12 @@ $('foto').onclick = () => $('foto-input').click();
 $('foto-input').onchange = async e => {
   const datei = e.target.files[0]; e.target.value = '';
   if (!datei) return;
-  fehler('app-err');
+  fehler('app-err'); status('Lade Foto hoch …', 'busy');
   const endung = (datei.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
   const pfad = `${user.id}/${crypto.randomUUID()}.${endung}`;
   const up = await sb.storage.from('belege').upload(pfad, datei, { contentType: datei.type });
-  if (up.error) return fehler('app-err', 'Foto konnte nicht hochgeladen werden: ' + up.error.message);
-  const { error } = await sb.from('zurufe').insert({ titel: 'Beleg (Foto)', art: 'beleg', beleg_pfad: pfad });
-  if (error) return fehler('app-err', 'Eintrag fehlgeschlagen: ' + error.message);
-  laden();
+  if (up.error) { status(''); return fehler('app-err', 'Foto NICHT hochgeladen: ' + up.error.message); }
+  if (await speichern({ titel: 'Beleg (Foto)', art: 'beleg', beleg_pfad: pfad })) status('Foto gespeichert ✓', 'ok');
 };
 
 /* ---------- Liste ---------- */
